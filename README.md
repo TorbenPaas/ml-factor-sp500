@@ -1,46 +1,69 @@
-## Projektidee
+# ML Factor Investing – S&P 500 Backtest
 
-Ich habe untersucht, ob man mit ML-Faktoren den S&P 500 schlagen kann.
-Dazu habe ich Kursdaten verwendet und Momentum-/Volatilitätsfaktoren berechnet.
+This project implements a machine-learning-based factor investing strategy
+for stocks in the S&P 500 universe. It downloads historical market data,
+computes quantitative features, trains a predictive model, and evaluates
+the resulting portfolio using a walk-forward backtest.
 
-ML Factor (S&P500)
+The goal is to analyze whether machine learning can generate statistically
+and economically meaningful alpha compared to a passive benchmark (SPY).
 
-This project implements a simple ML factor that predicts 3-month forward returns
-using only price-derived features, then backtests an equal-weighted long-short
-portfolio with monthly rebalancing.
+---
 
-Files
-- data.py: data download and caching (yfinance + Wikipedia tickers)
-- features.py: feature engineering and forward target
-- model.py: walk-forward training and cross-sectional scoring using gradient boosting
-- backtest.py: daily portfolio construction, transaction costs, performance stats
-- report.py: plotting (equity + drawdown)
-- run.py: entry point that orchestrates everything
-- requirements.txt: python deps
+## 📌 Features
 
-Quick start
-1. (Optional) Create virtualenv and install requirements:
+- Automatic download of S&P 500 constituents
+- Historical OHLCV data via Yahoo Finance
+- Feature engineering (momentum, volatility, moving averages, drawdowns, volume)
+- Forward return prediction (3-month horizon)
+- Walk-forward training and rebalancing
+- Long/short portfolio construction
+- Transaction cost modeling
+- Performance evaluation (CAGR, Sharpe, Max Drawdown)
+- Comparison with SPY benchmark
+- Equity curve and drawdown plots
+
+---
+
+## 📊 Methodology
+
+1. **Universe Selection**
+   - Current S&P 500 constituents from Wikipedia  
+   - Note: introduces survivorship bias
+
+2. **Data Collection**
+   - Daily OHLCV data from Yahoo Finance (`yfinance`)
+
+3. **Feature Engineering**
+   - Momentum indicators
+   - Volatility measures
+   - Moving averages
+   - Volume-based features
+   - Drawdown metrics
+
+4. **Target Variable**
+   - Forward 63-day (≈ 3 months) returns
+
+5. **Model**
+   - Gradient Boosting Regressor
+   - Walk-forward training to avoid look-ahead bias
+
+6. **Portfolio Construction**
+   - Monthly rebalancing
+   - Long top 10%, short bottom 10% predictions
+   - Equal-weighted positions
+
+7. **Backtesting**
+   - Transaction costs in basis points
+   - Performance statistics
+   - Benchmark comparison (SPY)
+
+---
+
+## 🚀 Installation
+
+### 1. Clone the Repository
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-2. Run with full universe (may take a while and download a lot):
-
-```bash
-python3 run.py --start 2010-01-01 --end 2026-01-31
-```
-
-3. For fast local tests, limit tickers:
-
-```bash
-python3 run.py --limit 100
-```
-
-Notes
-- The project uses `HistGradientBoostingRegressor` from scikit-learn by default.
-- Data is cached to `./data/cache.parquet` after first download.
-- Running the full S&P500 download may be rate-limited by the data provider.
-- This is a research-quality backtest, not production trading code.
+git clone https://github.com/<your-username>/ml-factor-sp500.git
+cd ml-factor-sp500
