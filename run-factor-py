@@ -1,0 +1,81 @@
+"""
+data.py
+Datenbeschaffung & Caching
+"""
+from typing import List, Tuple
+import os
+import time
+import pandas as pd
+import yfinance as yf
+import requests
+
+DATA_DIR = "data"
+RAW_DIR = os.path.join(DATA_DIR, "raw")
+PROCESSED_DIR = os.path.join(DATA_DIR, "processed")
+os.makedirs(RAW_DIR, exist_ok=True)
+os.makedirs(PROCESSED_DIR, exist_ok=True)
+
+def get_sp500_tickers() -> List[str]:
+    """Lade S&P500-Ticker von Wikipedia (aktuell)."""
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    tables = pd.read_html(url)
+    df = tables[0]
+    tickers = df["Symbol"].str.replace('.', '-', regex=False).tolist()
+    return tickers
+
+def download_ticker(ticker: str, start: str = "2010-01-01", end: str = None) -> str:
+    """Lade OHLCV für einen Ticker und speichere CSV (wenn nicht vorhanden)."""
+    path = os.path.join(RAW_DIR, f"{ticker}.csv")
+    if os.path.exists(path):
+        return path
+    end = end or pd.Timestamp.today().strftime("%Y-%m-%d")
+    # yfinance single ticker download
+    try:
+        df = yf.download(ticker, start=start, end=end, progress=False, threads=False)
+    except Exception:
+        time.sleep(1)
+        df = yf.download(ticker, start=start, end=end, progress=False, threads=False)
+    if df.empty:
+        # create empty to avoid re-downloading repeatedly
+        df.to_csv(path)
+        return path
+    df.to_csv(path)
+    return path
+
+def build_price_volume_panels(tickers: List[str], start: str = "2010-01-01", end: str = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Lädt (oder liest) alle Ticker CSVs und baut zwei Panels:
+    closes: DataFrame(index=Date, columns=tickers)
+    volume: DataFrame(index=Date, columns=tickers)
+    """
+    closes = {}
+    volumes = {}
+    end = end or pd.Timestamp.today().strftime("%Y-%m-%d")
+    for t in tickers:
+        path = os.path.join(RAW_DIR, f"{t}.csv")
+        if not os.path.exists(path):
+            download_ticker(t, start=start, end=end)
+        try:
+            df = pd.read_csv(path, index_col=0, parse_dates=True)
+            if "Close" in df.columns and "Volume" in df.columns:
+                closes[t] = df["Close"]
+                volumes[t] = df["Volume"]
+        except Exception:
+            continue
+    closes_df = pd.DataFrame(closes).sort_index()
+    volumes_df = pd.DataFrame(volumes).sort_index()
+    # Save processed for quick reload
+    closes_df.to_parquet(os.path.join(PROCESSED_DIR, "closes.parquet"))
+    volumes_df.to_parquet(os.path.join(PROCESSED_DIR, "volumes.parquet"))
+    return closes_df, volumes_df
+
+def load_price_panels() -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Versuche, gespeicherte Panels zu laden, sonst bauen."""
+    closes_path = os.path.join(PROCESSED_DIR, "closes.parquet")
+    volumes_path = os.path.join(PROCESSED_DIR, "volumes.parquet")
+    if os.path.exists(closes_path) and os.path.exists(volumes_path):
+        closes = pd.read_parquet(closes_path)
+        volumes = pd.read_parquet(volumes_path)
+        return closes, volumes
+    tickers = get_sp500_tickers()
+    return build_price_volume_panels(tickers)
